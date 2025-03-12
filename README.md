@@ -29,16 +29,16 @@ For quick results check the following functions:
                          fwidth=4.8, flength=6.4, padx=0.8, pady=0.2):
         Plot an image table.
 
-    fit_sig_function(x, y, tolerance=0.1, model='sigmoid'):
+    fit_sig_model(x, y, tolerance=0.1, model='sigmoid'):
         Fit a logistic sigmoid, Boltzmann or Gompertz model to the
         given data.
 
-    fit_dsig_function(x, y, tolerance=0.1, model='sigmoid'):
+    fit_dsig_model(x, y, tolerance=0.1, model='sigmoid'):
         Fit a logistic double-sigmoid, double-Boltzmann or
         double-Gompertz model to the given data.
 
-    analyze_sig_function(x, y, pars, model='sigmoid'):
+    analyze_sig_model(x, y, pars, model='sigmoid'):
         Perform a curve analysis on a sigmoid model.
 
-    analyze_dsig_function(x, y, pars, model='sigmoid'):
+    analyze_dsig_model(x, y, pars, model='sigmoid'):
         Perform a curve analysis on a sigmoid model.
