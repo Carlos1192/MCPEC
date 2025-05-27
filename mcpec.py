@@ -583,8 +583,14 @@ def lack_of_fit_F_test(x, y, pars, model='sigmoid', alpha = 0.05):
         print(f'p: {p} > {alpha}: lack of fit not significant')
         
     return {
-        'sse':sse, 'sslf':sslf, 'sspe':sspe, 'df_sse':df_sse,
-        'df_sslf':df_sslf, 'df_sspe':df_sspe, 'F_stats':f_st, 'p':p
+        'sse':     float(sse),
+        'sslf':    float(sslf),
+        'sspe':    float(sspe),
+        'df_sse':  float(df_sse),
+        'df_sslf': float(df_sslf),
+        'df_sspe': float(df_sspe),
+        'F_stats': float(f_st),
+        'p':       float(p),
         }
 
 
@@ -668,7 +674,7 @@ def fit_sig_model(x, y, tolerance=0.1, model='sigmoid'):
 
 
 
-def analyze_sig_model(x, y, pars, model='sigmoid'):
+def analyze_sig_model(x, y, pars, model='sigmoid', interval_steps=3):
     """Perform a curve analysis on a sigmoid model.
 
     A sigmoid model is analyzed using the given parameters.
@@ -684,6 +690,8 @@ def analyze_sig_model(x, y, pars, model='sigmoid'):
     model : str, optional
         Model function to be analyzed. "sigmoid", "boltzmann" and "gompertz"
         are available. The default is "sigmoid".
+    interval_steps : int, optional
+        Defines the size of the window size to find the POI. The default is 3.
 
     Raises
     ------
@@ -729,60 +737,55 @@ def analyze_sig_model(x, y, pars, model='sigmoid'):
     from scipy.optimize import brentq
     from scipy.integrate import quad
     
+    a, b, c, d = pars
     
     if model == 'sigmoid':
-        a, b, c, d = pars
-        
         def sig(x, a, b):
             return 1/(1+e((b-x)*a))
         
-        def func(x, a, b, c, d):
+        def func(x):
             # reparameterized logistic sigmoid function
             return c * sig(x, a, b) + d
         
-        def func_d1(x, a, b, c):
+        def func_d1(x):
             # simplified first derivative of the logistic sigmoid function
             return c*a * sig(x, a, b)*(1-sig(x, a, b))
         
-        def func_d2(x, a, b, c):
+        def func_d2(x):
             # simplified second derivative of the logistic sigmoid function
             return c*a**2 * sig(x, a, b)*(1-sig(x, a, b)) * (1-2*sig(x, a, b))
         
         
     elif model == 'boltzmann':
-        a, b, c, d = pars
-        
         def sig(x, a, b):
             return 1/(1+e((b-x)/a))
         
-        def func(x, a, b, c, d):
+        def func(x):
             # Boltzmann function
             return (c-d) * sig(x, a, b) + d
         
-        def func_d1(x, a, b, c, d):
+        def func_d1(x):
             # simplified first derivative of the Boltzmann function
             return (c-d)/a * sig(x, a, b)*(1-sig(x, a, b))
         
-        def func_d2(x, a, b, c, d):
+        def func_d2(x):
             # simplified second derivative of the Boltzmann function
             return (c-d)/a**2 * sig(x, a, b)*(1-sig(x, a, b)) * (1-2*sig(x, a, b))
         
         
     elif model == 'gompertz':
-        a, b, c, d = pars
-        
         def sig(x, a, b):
             return -b*e(-a*x)
         
-        def func(x, a, b, c, d):
+        def func(x):
             # Gompertz function
             return c*e(sig(x, a, b)) + d
         
-        def func_d1(x, a, b, c):
+        def func_d1(x):
             # simplified first derivative of the Gompertz function
             return func(x, a, b, c, 0) * sig(x, a, b)*(-a)
         
-        def func_d2(x, a, b, c):
+        def func_d2(x):
             # simplified second derivative of the Gompertz function
             return func_d1(x, a, b, c) * (sig(x, a, b)*(-a)-a)
         
@@ -791,30 +794,39 @@ def analyze_sig_model(x, y, pars, model='sigmoid'):
         'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
     
     
-    # estimate sign changing intervals (sci) of second derivative
-    # before and after the peak to estimate POIs
-    # peak x index
-    pxi = [e for e, i in enumerate(y) if i==max(y)][0]
-    # y values of second derivative before and after peak
-    yd2_bp, yd2_ap = func_d2(x[:pxi]), func_d2(x[pxi:])
-    # indices of sign chaning intervals before peak and after peak
-    sci_bp = [i for i,_ in enumerate(yd2_bp[:-1]) if yd2_bp[i]*yd2_bp[i+1]<0][-1]
-    sci_ap = [i for i,_ in enumerate(yd2_ap[:-1]) if yd2_ap[i]*yd2_ap[i+1]<0][0]+pxi
+    # find sign changing indexes (SCIs)
+    sci_d2 = [e for e,i in enumerate(func_d2(x)[:-1]*func_d2(x)[1:]) if i<0]
+    
+    if len(sci_d2) < 1:
+        print('No POIs found. Something went somewhere terribly wrong...')
+        return {}
     
     
-    # calculate characteristic points
-    # find root of second derivative
-    poi_x  = brentq(func_d2, x[sci_bp], x[sci_bp+1])
-    poi_x2 = brentq(func_d2, x[sci_ap], x[sci_ap+1])
+    sample_intervals = float(abs(min(x[:-1] - x[1:])))
+    # define windows size to determine roots
+    ws = sample_intervals*interval_steps  # window size
+    
+    # compute POI
+    poi_x  = brentq(func_d2, x[sci_d2[0]]-ws, x[sci_d2[0]]+ws)
     poi_y  = func(poi_x)
     
-    # find root of first derivative
-    peak_x = brentq(func_d1, poi_x, poi_x2)
-    peak_y = func(peak_x)
-    
+    # compute max slope
     slope  = func_d1(poi_x)
     
-    intercept = min(func(x[:pxi]))
+    # define intercept as point with a slope < 0.01
+    # start counting at POI and go backwards
+    intercept_x = poi_x
+    while func_d1(intercept_x)*(a/abs(a)) > 0.01:
+        intercept_x = intercept_x - sample_intervals
+        intercept = func(intercept_x)
+    
+    # define peak as point with a slope < 0.01
+    # start counting at POI and go forward
+    peak_x = poi_x
+    while func_d1(peak_x)*(a/abs(a)) > 0.01:
+        peak_x = peak_x + sample_intervals
+        peak_y = func(peak_x)
+    
     
     # draw secants through POIs to determine exp. and deg. phase
     # f(x)=ax+b with poi_y=slope*poi_x+b <=> b=poi_y-slope*poi_x
@@ -829,17 +841,17 @@ def analyze_sig_model(x, y, pars, model='sigmoid'):
     integral_div = integral / len_exp
     
     return {
-        'slope':         slope,
-        'poi_x':         poi_x,
-        'poi_y':         poi_y,
-        'peak_y':        peak_y,
-        'intercept':     intercept,
-        'start_exp':     start_exp,
-        'end_exp':       end_exp,
-        'len_exp':       len_exp,
-        'integral':      integral,
-        'err':           err,
-        'integral_div':  integral_div,
+        'slope':         float(slope),
+        'poi_x':         float(poi_x),
+        'poi_y':         float(poi_y),
+        'peak_y':        float(peak_y),
+        'intercept':     float(intercept),
+        'start_exp':     float(start_exp),
+        'end_exp':       float(end_exp),
+        'len_exp':       float(len_exp),
+        'integral':      float(integral),
+        'err':           float(err),
+        'integral_div':  float(integral_div),
         }
 
 
@@ -929,7 +941,7 @@ def fit_dsig_model(x, y, tolerance=0.1, model='sigmoid'):
 
 
 
-def analyze_dsig_model(x, y, pars, model='sigmoid'):
+def analyze_dsig_model(x, y, pars, model='sigmoid', interval_steps=3):
     """Perform a curve analysis on a sigmoid model.
 
     A sigmoid model is analyzed using the given parameters.
@@ -945,6 +957,8 @@ def analyze_dsig_model(x, y, pars, model='sigmoid'):
     model : str, optional
         Model function to be analyzed. "sigmoid", "boltzmann" and "gompertz"
         are available. The default is "sigmoid".
+    interval_steps : int, optional
+        Defines the window size to find POIs. The default is 3.
 
     Raises
     ------
@@ -1013,6 +1027,7 @@ def analyze_dsig_model(x, y, pars, model='sigmoid'):
     """
 
     from numpy import exp as e
+    from numpy import arange
     from scipy.optimize import brentq
     from scipy.integrate import quad
     
@@ -1099,34 +1114,68 @@ def analyze_dsig_model(x, y, pars, model='sigmoid'):
         'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
     
     
-    # estimate sign changing intervals (sci) of second derivative
-    # before and after the peak to estimate POIs
-    # peak x index
-    pxi = [e for e, i in enumerate(y) if i==max(y)][0]
-    # y values of second derivative before and after peak
-    yd2_bp, yd2_ap = func_d2(x[:pxi]), func_d2(x[pxi:])
-    # indices of sign chaning intervals before peak and after peak
-    sci_bp = [i for i,_ in enumerate(yd2_bp[:-1]) if yd2_bp[i]*yd2_bp[i+1]<0][-1]
-    sci_ap = [i for i,_ in enumerate(yd2_ap[:-1]) if yd2_ap[i]*yd2_ap[i+1]<0][0]+pxi
+    # elongate x axis to find POIs if necessary
+    sample_intervals = float(abs(min(x[:-1] - x[1:])))
+    # elongate x if 1st POI before x[0]
+    start_x = min((pars[1]-x[0])*1.5, x[0])
+    # elongate x if 2nd POI after x[-1]
+    end_x = max(x[-1]+(pars[5]-x[-1])*1.5, x[-1])
+    # new x array
+    x = arange(start_x, end_x, sample_intervals)
+    
+    
+    # find sign changing indexes (SCIs)
+    sci_d1 = [e for e,i in enumerate(func_d1(x)[:-1]*func_d1(x)[1:]) if i<0]
+    sci_d2 = [e for e,i in enumerate(func_d2(x)[:-1]*func_d2(x)[1:]) if i<0]
+    
+    if len(sci_d2) < 2:
+        print('No POIs found. Something went somewhere terribly wrong...')
+        return {}
+    
+    # remove 1st POI if its slope is < 0
+    if func_d1(x[sci_d2[0]])*(pars[0]/abs(pars[0])) < 0:
+        sci_d2 = sci_d2[1:]
+    
+    # keep peak index between POIs
+    sci_d1 = [i for i in sci_d1 if sci_d2[0] < i < sci_d2[-1]]
+    
+    # define windows size to determine roots
+    ws = sample_intervals*interval_steps  # window size
+    # if the slopes have different signs the curves are stacked
+    # the peak becomes a POI
+    # if pars[0]*pars[4] < 0:
+    if len(sci_d1) < 1:
+        poi_x  = brentq(func_d2, x[sci_d2[0]]-ws, x[sci_d2[0]]+ws)
+        peak_x = brentq(func_d2, x[sci_d2[1]]-ws, x[sci_d2[1]]+ws)
+        poi_x2 = brentq(func_d2, x[sci_d2[2]]-ws, x[sci_d2[2]]+ws)
+    else:
+        peak_x = brentq(func_d1, x[sci_d1[0]]-ws, x[sci_d1[0]]+ws)
+        poi_x  = brentq(func_d2, x[sci_d2[0]]-ws, x[sci_d2[0]]+ws)
+        poi_x2 = brentq(func_d2, x[sci_d2[1]]-ws, x[sci_d2[1]]+ws)
+    
+    
+    # define intercept as point with a slope < 0.01
+    # start counting at 1st POI and go backwards
+    intercept_x = poi_x
+    while abs(func_d1(intercept_x)) > 0.01:
+        intercept_x = intercept_x - sample_intervals
+        intercept = func(intercept_x)
+    
+    # define plateau as point with a slope > -0.01
+    # start counting at 2nd POI and go forward
+    plateau_x = poi_x2
+    while abs(func_d1(plateau_x)) > 0.01:
+        plateau_x = plateau_x + sample_intervals
+        plateau = func(plateau_x)
     
     
     # calculate characteristic points
-    # find root of second derivative
-    poi_x  = brentq(func_d2, x[sci_bp], x[sci_bp+1])
     poi_y  = func(poi_x)
-    
-    poi_x2 = brentq(func_d2, x[sci_ap], x[sci_ap+1])
     poi_y2 = func(poi_x2)
-    
-    # find root of first derivative
-    peak_x = brentq(func_d1, poi_x, poi_x2)
     peak_y = func(peak_x)
     
     slope  = func_d1(poi_x)
     slope2 = func_d1(poi_x2)
-    
-    intercept = min(func(x[:pxi]))
-    plateau = min(func(x[pxi:]))
     
     # draw secants through POIs to determine exp. and deg. phase
     # f(x)=ax+b with poi_y=slope*poi_x+b <=> b=poi_y-slope*poi_x
@@ -1140,33 +1189,33 @@ def analyze_dsig_model(x, y, pars, model='sigmoid'):
     len_deg = abs(end_deg - start_deg)
     
     # compute definite integrals of exp. and deg. phase
-    integral, err = quad(lambda x: func(x)-intercept, a=start_exp, b=end_exp)
-    integral2, err2 = quad(lambda x: func(x)-plateau, a=start_deg, b=end_deg)
+    integral, err = quad(lambda x: func(x)-min(intercept, peak_y), a=start_exp, b=end_exp)
+    integral2, err2 = quad(lambda x: func(x)-min(plateau, peak_y), a=start_deg, b=end_deg)
     
     integral_div = integral / len_exp
     integral_div2 = integral2 / len_deg
     
     return {
-        'slope':         slope,
-        'poi_x':         poi_x,
-        'poi_y':         poi_y,
-        'peak_x':        peak_x,
-        'peak_y':        peak_y,
-        'intercept':     intercept,
-        'start_exp':     start_exp,
-        'end_exp':       end_exp,
-        'len_exp':       len_exp,
-        'integral':      integral,
-        'err':           err,
-        'integral_div':  integral_div,
-        'slope2':        slope2,
-        'poi_x2':        poi_x2,
-        'poi_y2':        poi_y2,
-        'plateau':       plateau,
-        'start_deg':     start_deg,
-        'end_deg':       end_deg,
-        'len_deg':       len_deg,
-        'integral2':     integral2,
-        'err2':          err2,
-        'integral_div2': integral_div2,
+        'slope':         float(slope),
+        'poi_x':         float(poi_x),
+        'poi_y':         float(poi_y),
+        'peak_x':        float(peak_x),
+        'peak_y':        float(peak_y),
+        'intercept':     float(intercept),
+        'start_exp':     float(start_exp),
+        'end_exp':       float(end_exp),
+        'len_exp':       float(len_exp),
+        'integral':      float(integral),
+        'err':           float(err),
+        'integral_div':  float(integral_div),
+        'slope2':        float(slope2),
+        'poi_x2':        float(poi_x2),
+        'poi_y2':        float(poi_y2),
+        'plateau':       float(plateau),
+        'start_deg':     float(start_deg),
+        'end_deg':       float(end_deg),
+        'len_deg':       float(len_deg),
+        'integral2':     float(integral2),
+        'err2':          float(err2),
+        'integral_div2': float(integral_div2),
         }
