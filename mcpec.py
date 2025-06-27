@@ -161,6 +161,7 @@ def load_data(filename, sep=';', decimal='.',
                     for sn, sd, c in zip(sort_nam, sort_dat, unique(names))]
 
     return x_values, unique(names), unique(chans), samples
+    # return x_values, [i for i in unique(names)], [i for i in unique(chans)], samples
 
 
 
@@ -241,11 +242,11 @@ def multiple_axes_plot(xdata, ydata, limits=[], labels=[], colors=[],
     from numpy import percentile, isnan
     from matplotlib.pyplot import subplot
 
-    if limits == []:
+    if len(limits) == 0:
         limits = [percentile(i[~isnan(i)], (5,95)) for i in ydata]
-    if labels == []:
+    if len(labels) == 0:
         labels = [None]*len(ydata)
-    if colors == []:
+    if len(colors) == 0:
         colors = [f'C{i}' for i, y in enumerate(ydata)]
 
     ax = subplot(rows, columns, index, title=title, xlabel=xlabel)
@@ -329,7 +330,8 @@ def plot_image_table(xdata, ydata, rows, columns, limits=[], labels=[],
 
     from matplotlib.pyplot import figure, subplots_adjust
 
-    if titles == []: titles = [None]*len(ydata)
+    if len(titles) == 0:
+        titles = [None]*len(ydata)
 
     fig = figure(figsize=[flength*columns, fwidth*rows])
 
@@ -414,7 +416,7 @@ def estimate_pars(x, y):
     """
 
     dx, dy = x[1:], (y[1:]-y[:-1])/(x[1:]-x[:-1])
-    
+
     peak = max(y)
     pxi = [e for e, i in enumerate(y) if i==max(y)][0]  # peak x-index
     slope1, slope2 = max(dy[:pxi]), min(dy[pxi:])
@@ -422,7 +424,7 @@ def estimate_pars(x, y):
     poi2 = dx[pxi:][dy[pxi:]==slope2][0]
     intercept = min(abs(y[:pxi]))
     plateau = min(abs(y[pxi:]))
-    
+
     return slope1, slope2, poi1, poi2, peak, intercept, plateau
 
 
@@ -465,9 +467,9 @@ def curve_fitting(x, y, func, p0, bounds):
     """
     from scipy.optimize import curve_fit
     from numpy import mean
-    
+
     pars, pcov = curve_fit(func, x, y, p0=p0, bounds=bounds)
-    
+
     # calculate R2 and RMSD
     residuals = y - func(x, *pars)
     ss_res = sum(residuals**2)
@@ -475,16 +477,16 @@ def curve_fitting(x, y, func, p0, bounds):
     r2 = 1 - (ss_res / ss_tot)
     adj_r2 = 1-(1-r2)*((len(y)-1) / (len(y)-len(pars)-1))
     rmsd = ss_res**0.5
-    
+
     return pars, pcov, r2, adj_r2, rmsd
 
 
 
 def lack_of_fit_F_test(x, y, pars, model='sigmoid', alpha = 0.05):
     """Perform a lack-of-fit sum of squares test.
-    
-    
-    
+
+
+
     Parameters
     ----------
     x : 1D-array
@@ -535,7 +537,7 @@ def lack_of_fit_F_test(x, y, pars, model='sigmoid', alpha = 0.05):
             func = gompertz(x, *pars)
         else: raise ValueError(
             'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
-    
+
     elif len(pars) == 7:
         if model == 'sigmoid':
             func = dsigmoid(x, *pars)
@@ -545,10 +547,10 @@ def lack_of_fit_F_test(x, y, pars, model='sigmoid', alpha = 0.05):
             func = dgompertz(x, *pars)
         else: raise ValueError(
             'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
-    
+
     else: raise ValueError(
         'number of parameters does not match the defined models')
-    
+
     # error sum of sqares
     # prediction error: distance between measurements and model
     pe = y - func
@@ -556,7 +558,7 @@ def lack_of_fit_F_test(x, y, pars, model='sigmoid', alpha = 0.05):
     # lack of fit sum of sqares
     # total lack of fit: distance between average and model
     lof = sum(y)/len(y) - func
-    sslf = sum(lof.flatten()**2)    
+    sslf = sum(lof.flatten()**2)
     # pure error sum of sqares
     # total error: distance between measurements and average
     te = y - sum(y)/len(y)
@@ -572,16 +574,16 @@ def lack_of_fit_F_test(x, y, pars, model='sigmoid', alpha = 0.05):
     mslf, mspe = sslf/df_sslf, sspe/df_sspe
     # F-statistics
     f_st = mslf/mspe
-    
+
     # calculate p-value
     import scipy.stats
     p = 1-scipy.stats.f.cdf(f_st, df_sslf, df_sspe)
-    
+
     if p < alpha:
         print(f'p: {p} < {alpha}: significant lack of fit!!!')
     else:
         print(f'p: {p} > {alpha}: lack of fit not significant')
-        
+
     return {
         'sse':     float(sse),
         'sslf':    float(sslf),
@@ -642,7 +644,7 @@ def fit_sig_model(x, y, tolerance=0.1, model='sigmoid'):
     slope, slope2, poi, poi2, peak, intercept, plateau = estimate_pars(x, y)
     x_range = abs(max(x) - min(x)) * tolerance
     y_range = abs(max(y) - min(y)) * tolerance
-    
+
     if model == 'sigmoid':
         func = sigmoid
         p0 = 1, poi, peak, intercept
@@ -650,7 +652,7 @@ def fit_sig_model(x, y, tolerance=0.1, model='sigmoid'):
             (  0, poi-x_range, peak-y_range, intercept-y_range),
             (inf, poi+x_range, peak+y_range, intercept+y_range)
             )
-    
+
     elif model == 'boltzmann':
         func = boltzmann
         p0 = 1, poi, peak, intercept
@@ -658,7 +660,7 @@ def fit_sig_model(x, y, tolerance=0.1, model='sigmoid'):
             (  0, poi-x_range, peak-y_range, intercept-y_range),
             (inf, poi+x_range, peak+y_range, intercept+y_range)
             )
-    
+
     elif model == 'gompertz':
         func = gompertz
         p0 = 1, 1, peak, intercept
@@ -666,10 +668,10 @@ def fit_sig_model(x, y, tolerance=0.1, model='sigmoid'):
             (  0, -inf, peak-y_range, intercept-y_range),
             (inf,  inf, peak+y_range, intercept+y_range)
             )
-    
+
     else: raise ValueError(
         'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
-    
+
     return curve_fitting(x, y, func, p0, bounds)
 
 
@@ -731,115 +733,115 @@ def analyze_sig_model(x, y, pars, model='sigmoid', interval_steps=3):
             as score to measure the overall performance of a growth curve.
 
     """
-    
-    
+
+
     from numpy import exp as e
     from scipy.optimize import brentq
     from scipy.integrate import quad
-    
+
     a, b, c, d = pars
-    
+
     if model == 'sigmoid':
         def sig(x, a, b):
             return 1/(1+e((b-x)*a))
-        
+
         def func(x):
             # reparameterized logistic sigmoid function
             return c * sig(x, a, b) + d
-        
+
         def func_d1(x):
             # simplified first derivative of the logistic sigmoid function
             return c*a * sig(x, a, b)*(1-sig(x, a, b))
-        
+
         def func_d2(x):
             # simplified second derivative of the logistic sigmoid function
             return c*a**2 * sig(x, a, b)*(1-sig(x, a, b)) * (1-2*sig(x, a, b))
-        
-        
+
+
     elif model == 'boltzmann':
         def sig(x, a, b):
             return 1/(1+e((b-x)/a))
-        
+
         def func(x):
             # Boltzmann function
             return (c-d) * sig(x, a, b) + d
-        
+
         def func_d1(x):
             # simplified first derivative of the Boltzmann function
             return (c-d)/a * sig(x, a, b)*(1-sig(x, a, b))
-        
+
         def func_d2(x):
             # simplified second derivative of the Boltzmann function
             return (c-d)/a**2 * sig(x, a, b)*(1-sig(x, a, b)) * (1-2*sig(x, a, b))
-        
-        
+
+
     elif model == 'gompertz':
         def sig(x, a, b):
             return -b*e(-a*x)
-        
+
         def func(x):
             # Gompertz function
             return c*e(sig(x, a, b)) + d
-        
+
         def func_d1(x):
             # simplified first derivative of the Gompertz function
             return func(x, a, b, c, 0) * sig(x, a, b)*(-a)
-        
+
         def func_d2(x):
             # simplified second derivative of the Gompertz function
             return func_d1(x, a, b, c) * (sig(x, a, b)*(-a)-a)
-        
-        
+
+
     else: raise ValueError(
         'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
-    
-    
+
+
     # find sign changing indexes (SCIs)
     sci_d2 = [e for e,i in enumerate(func_d2(x)[:-1]*func_d2(x)[1:]) if i<0]
-    
+
     if len(sci_d2) < 1:
         print('No POIs found. Something went somewhere terribly wrong...')
         return {}
-    
-    
+
+
     sample_intervals = float(abs(min(x[:-1] - x[1:])))
     # define windows size to determine roots
     ws = sample_intervals*interval_steps  # window size
-    
+
     # compute POI
     poi_x  = brentq(func_d2, x[sci_d2[0]]-ws, x[sci_d2[0]]+ws)
     poi_y  = func(poi_x)
-    
+
     # compute max slope
     slope  = func_d1(poi_x)
-    
+
     # define intercept as point with a slope < 0.01
     # start counting at POI and go backwards
     intercept_x = poi_x
     while func_d1(intercept_x)*(a/abs(a)) > 0.01:
         intercept_x = intercept_x - sample_intervals
         intercept = func(intercept_x)
-    
+
     # define peak as point with a slope < 0.01
     # start counting at POI and go forward
     peak_x = poi_x
     while func_d1(peak_x)*(a/abs(a)) > 0.01:
         peak_x = peak_x + sample_intervals
         peak_y = func(peak_x)
-    
-    
+
+
     # draw secants through POIs to determine exp. and deg. phase
     # f(x)=ax+b with poi_y=slope*poi_x+b <=> b=poi_y-slope*poi_x
     # intercept = slope*x + (poi_y-slope*poi_x)
     start_exp = (intercept - (poi_y-slope*poi_x)) / slope
     end_exp = (peak_y - (poi_y-slope*poi_x)) / slope
     len_exp = abs(end_exp - start_exp)
-    
+
     # compute definite integrals of exp. and deg. phase
     integral, err = quad(lambda x: func(x)-intercept, a=start_exp, b=end_exp)
-    
+
     integral_div = integral / len_exp
-    
+
     return {
         'slope':         float(slope),
         'poi_x':         float(poi_x),
@@ -905,7 +907,7 @@ def fit_dsig_model(x, y, tolerance=0.1, model='sigmoid'):
     slope1, slope2, poi1, poi2, peak, intercept, plateau = estimate_pars(x, y)
     x_range = abs(max(x) - min(x)) * tolerance
     y_range = abs(max(y) - min(y)) * tolerance
-    
+
     if model == 'sigmoid':
         func = dsigmoid
         p0 = 1, poi1, peak-intercept, intercept, 1, poi2, peak-plateau
@@ -915,7 +917,7 @@ def fit_dsig_model(x, y, tolerance=0.1, model='sigmoid'):
             (inf, poi1+x_range,  inf, intercept+y_range,
              inf, poi2+x_range, peak-plateau+y_range)
             )
-        
+
     elif model == 'boltzmann':
         func = dboltzmann
         p0 = 1, poi1, peak, intercept, 1, poi2, plateau
@@ -925,7 +927,7 @@ def fit_dsig_model(x, y, tolerance=0.1, model='sigmoid'):
             (inf, poi1+x_range,  inf, intercept+y_range,
              inf, poi2+x_range, plateau+y_range)
             )
-        
+
     elif model == 'gompertz':
         func = dgompertz
         p0 = 1, poi1, peak, intercept, 1, poi2, plateau
@@ -933,10 +935,10 @@ def fit_dsig_model(x, y, tolerance=0.1, model='sigmoid'):
             (  0, -inf, -inf, intercept-y_range,   0, -inf, plateau-y_range),
             (inf,  inf,  inf, intercept+y_range, inf,  inf, plateau+y_range)
             )
-        
+
     else: raise ValueError(
         'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
-    
+
     return curve_fitting(x, y, func, p0, bounds)
 
 
@@ -1030,90 +1032,90 @@ def analyze_dsig_model(x, y, pars, model='sigmoid', interval_steps=3):
     from numpy import arange
     from scipy.optimize import brentq
     from scipy.integrate import quad
-    
-    
+
+
     if model == 'sigmoid':
         def sig(x, a, b):
             return 1/(1+e((b-x)*a))
-        
+
         def sigmoid(x, a, b, c, d):
             # reparameterized logistic sigmoid function
             return c * sig(x, a, b) + d
-        
+
         def sigmoid_d1(x, a, b, c):
             # simplified first derivative of the logistic sigmoid function
             return c*a * sig(x, a, b)*(1-sig(x, a, b))
-        
+
         def sigmoid_d2(x, a, b, c):
             # simplified second derivative of the logistic sigmoid function
             return c*a**2 * sig(x, a, b)*(1-sig(x, a, b)) * (1-2*sig(x, a, b))
-        
+
         def func(x):
             return sigmoid(x, *pars[:4]) - sigmoid(x, *pars[4:], 0)
-        
+
         def func_d1(x):
             return sigmoid_d1(x, *pars[:3]) - sigmoid_d1(x, *pars[4:])
-        
+
         def func_d2(x):
             return sigmoid_d2(x, *pars[:3]) - sigmoid_d2(x, *pars[4:])
-        
-        
+
+
     elif model == 'boltzmann':
         def sig(x, a, b):
             return 1/(1+e((b-x)/a))
-        
+
         def boltzmann(x, a, b, c, d):
             # Boltzmann function
             return (c-d) * sig(x, a, b) + d
-        
+
         def boltzmann_d1(x, a, b, c, d):
             # simplified first derivative of the Boltzmann function
             return (c-d)/a * sig(x, a, b)*(1-sig(x, a, b))
-        
+
         def boltzmann_d2(x, a, b, c, d):
             # simplified second derivative of the Boltzmann function
             return (c-d)/a**2 * sig(x, a, b)*(1-sig(x, a, b)) * (1-2*sig(x, a, b))
-        
+
         def func(x):
             return boltzmann(x, *pars[:4]) - boltzmann(x, pars[4], pars[5], pars[2], pars[6]) + pars[6]
-        
+
         def func_d1(x):
             return boltzmann_d1(x, *pars[:4]) - boltzmann_d1(x, pars[4], pars[5], pars[2], pars[6])
-        
+
         def func_d2(x):
             return boltzmann_d2(x, *pars[:4]) - boltzmann_d2(x, pars[4], pars[5], pars[2], pars[6])
-        
-        
+
+
     elif model == 'gompertz':
         def sig(x, a, b):
             return -b*e(-a*x)
-        
+
         def gompertz(x, a, b, c, d):
             # Gompertz function
             return c*e(sig(x, a, b)) + d
-        
+
         def gompertz_d1(x, a, b, c):
             # simplified first derivative of the Gompertz function
             return gompertz(x, a, b, c, 0) * sig(x, a, b)*(-a)
-        
+
         def gompertz_d2(x, a, b, c):
             # simplified second derivative of the Gompertz function
             return gompertz_d1(x, a, b, c) * (sig(x, a, b)*(-a)-a)
-        
+
         def func(x):
             return gompertz(x, *pars[:4]) - gompertz(x, *pars[4:], 0)
-        
+
         def func_d1(x):
             return gompertz_d1(x, *pars[:3]) - gompertz_d1(x, *pars[4:])
-        
+
         def func_d2(x):
             return gompertz_d2(x, *pars[:3]) - gompertz_d2(x, *pars[4:])
-        
-        
+
+
     else: raise ValueError(
         'unknown function. Choose "sigmoid", "boltzmann" or "gompertz"')
-    
-    
+
+
     # elongate x axis to find POIs if necessary
     sample_intervals = float(abs(min(x[:-1] - x[1:])))
     # elongate x if 1st POI before x[0]
@@ -1122,23 +1124,23 @@ def analyze_dsig_model(x, y, pars, model='sigmoid', interval_steps=3):
     end_x = max(x[-1]+(pars[5]-x[-1])*1.5, x[-1])
     # new x array
     x = arange(start_x, end_x, sample_intervals)
-    
-    
+
+
     # find sign changing indexes (SCIs)
     sci_d1 = [e for e,i in enumerate(func_d1(x)[:-1]*func_d1(x)[1:]) if i<0]
     sci_d2 = [e for e,i in enumerate(func_d2(x)[:-1]*func_d2(x)[1:]) if i<0]
-    
+
     if len(sci_d2) < 2:
         print('No POIs found. Something went somewhere terribly wrong...')
         return {}
-    
+
     # remove 1st POI if its slope is < 0
     if func_d1(x[sci_d2[0]])*(pars[0]/abs(pars[0])) < 0:
         sci_d2 = sci_d2[1:]
-    
+
     # keep peak index between POIs
     sci_d1 = [i for i in sci_d1 if sci_d2[0] < i < sci_d2[-1]]
-    
+
     # define windows size to determine roots
     ws = sample_intervals*interval_steps  # window size
     # if the slopes have different signs the curves are stacked
@@ -1152,49 +1154,49 @@ def analyze_dsig_model(x, y, pars, model='sigmoid', interval_steps=3):
         peak_x = brentq(func_d1, x[sci_d1[0]]-ws, x[sci_d1[0]]+ws)
         poi_x  = brentq(func_d2, x[sci_d2[0]]-ws, x[sci_d2[0]]+ws)
         poi_x2 = brentq(func_d2, x[sci_d2[1]]-ws, x[sci_d2[1]]+ws)
-    
-    
+
+
     # define intercept as point with a slope < 0.01
     # start counting at 1st POI and go backwards
     intercept_x = poi_x
     while abs(func_d1(intercept_x)) > 0.01:
         intercept_x = intercept_x - sample_intervals
         intercept = func(intercept_x)
-    
+
     # define plateau as point with a slope > -0.01
     # start counting at 2nd POI and go forward
     plateau_x = poi_x2
     while abs(func_d1(plateau_x)) > 0.01:
         plateau_x = plateau_x + sample_intervals
         plateau = func(plateau_x)
-    
-    
+
+
     # calculate characteristic points
     poi_y  = func(poi_x)
     poi_y2 = func(poi_x2)
     peak_y = func(peak_x)
-    
+
     slope  = func_d1(poi_x)
     slope2 = func_d1(poi_x2)
-    
+
     # draw secants through POIs to determine exp. and deg. phase
     # f(x)=ax+b with poi_y=slope*poi_x+b <=> b=poi_y-slope*poi_x
     # intercept = slope*x + (poi_y-slope*poi_x)
     start_exp = (intercept - (poi_y-slope*poi_x)) / slope
     end_exp = (peak_y - (poi_y-slope*poi_x)) / slope
     len_exp = abs(end_exp - start_exp)
-    
+
     start_deg = (peak_y - (poi_y2-slope2*poi_x2)) / slope2
     end_deg = (plateau - (poi_y2-slope2*poi_x2)) / slope2
     len_deg = abs(end_deg - start_deg)
-    
+
     # compute definite integrals of exp. and deg. phase
     integral, err = quad(lambda x: func(x)-min(intercept, peak_y), a=start_exp, b=end_exp)
     integral2, err2 = quad(lambda x: func(x)-min(plateau, peak_y), a=start_deg, b=end_deg)
-    
+
     integral_div = integral / len_exp
     integral_div2 = integral2 / len_deg
-    
+
     return {
         'slope':         float(slope),
         'poi_x':         float(poi_x),
